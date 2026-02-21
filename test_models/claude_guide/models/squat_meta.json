@@ -1,0 +1,19 @@
+{
+  "exercise": "squat",
+  "features": [
+    "left_knee_angle",
+    "right_knee_angle",
+    "left_hip_angle",
+    "right_hip_angle",
+    "torso_lean",
+    "left_knee_valgus",
+    "right_knee_valgus",
+    "hip_depth_left",
+    "hip_depth_right",
+    "left_ankle_angle",
+    "right_ankle_angle"
+  ],
+  "threshold": 0.2000,
+  "input_dim": 11,
+  "latent_dim": 4
+}
