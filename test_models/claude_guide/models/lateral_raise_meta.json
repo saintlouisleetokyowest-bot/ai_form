@@ -1,0 +1,16 @@
+{
+  "exercise": "lateral raise",
+  "features": [
+    "left_arm_raise",
+    "right_arm_raise",
+    "left_elbow_angle",
+    "right_elbow_angle",
+    "torso_lean",
+    "arm_symmetry",
+    "left_wrist_above_shoulder",
+    "right_wrist_above_shoulder"
+  ],
+  "threshold": 0.28052808344364155,
+  "input_dim": 8,
+  "latent_dim": 4
+}
