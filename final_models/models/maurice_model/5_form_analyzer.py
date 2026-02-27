@@ -1,5 +1,5 @@
 """
-Step 3: Real-Time Form Analyzer
+Real-Time Form Analyzer
 ================================
 Opens webcam, detects pose with MediaPipe, runs the autoencoder,
 displays a form score with specific fault text, and renders a
@@ -7,10 +7,7 @@ corrective ghost skeleton showing ideal form.
 
 Controls:
     Q         — quit
-    S         — switch to squats mode
-    L         — switch to lateral raise mode
 
-Author: You (guided by Claude)
 """
 
 import cv2
@@ -28,7 +25,7 @@ mp_drawing = mp.solutions.drawing_utils
 LM         = mp_pose.PoseLandmark
 
 # ── Paths ──────────────────────────────────────────────────────────────────────
-MODELS_DIR = Path("models")
+MODELS_DIR = Path("/Users/mauriceengel/code/saintlouisleetokyowest-bot/ai_form/final_models/models/maurice_model/saved_models")
 
 # ── Visual config ──────────────────────────────────────────────────────────────
 COLOR_USER_GOOD    = (0,   255, 0)    # Green  — good form
@@ -121,21 +118,22 @@ class Smoother:
 # ══════════════════════════════════════════════════════════════════════════════
 
 def load_model_artifacts(exercise_name):
-    """Load autoencoder, scaler, and metadata for a given exercise."""
+    """Load supervised model, scalers, and metadata for a given exercise."""
     safe = exercise_name.replace(" ", "_")
 
-    autoencoder = tf.keras.models.load_model(MODELS_DIR / f"{safe}_autoencoder.keras", compile=False)
-    decoder     = tf.keras.models.load_model(MODELS_DIR / f"{safe}_decoder.keras",     compile=False)
-    encoder     = tf.keras.models.load_model(MODELS_DIR / f"{safe}_encoder.keras",     compile=False)
+    model = tf.keras.models.load_model(MODELS_DIR / f"{safe}_supervised.keras", compile=False)
 
-    with open(MODELS_DIR / f"{safe}_scaler.pkl", "rb") as f:
-        scaler = pickle.load(f)
+    with open(MODELS_DIR / f"{safe}_X_scaler.pkl", "rb") as f:
+        X_scaler = pickle.load(f)
+
+    with open(MODELS_DIR / f"{safe}_y_scaler.pkl", "rb") as f:
+        y_scaler = pickle.load(f)
 
     with open(MODELS_DIR / f"{safe}_meta.json") as f:
         meta = json.load(f)
 
-    print(f"[{exercise_name}] Loaded — threshold: {meta['threshold']:.4f}")
-    return autoencoder, encoder, decoder, scaler, meta
+    print(f"[{exercise_name}] Loaded supervised model")
+    return model, X_scaler, y_scaler, meta
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -233,79 +231,53 @@ FEATURE_EXTRACTORS = {
 # FORM SCORING
 # ══════════════════════════════════════════════════════════════════════════════
 
-def score_form(features, meta, scaler, autoencoder):
-    feature_cols = meta["features"]
-    threshold    = meta["threshold"]
-    vec          = np.array([[features[f] for f in feature_cols]], dtype=np.float32)
-    vec_scaled   = scaler.transform(vec)
-    reconstruction = autoencoder.predict(vec_scaled, verbose=0)
-    error          = float(np.mean(np.square(vec_scaled - reconstruction)))
-    score          = max(0.0, 100.0 * np.exp(-error / (threshold * 5)))
-    is_bad         = error > threshold
-    return score, error, reconstruction[0], is_bad
+def score_form(features, meta, X_scaler, y_scaler, model):
+    feature_cols = [f.replace("_bad", "") for f in meta["input_features"]]
+    vec = np.array([[features[f] for f in feature_cols]], dtype=np.float32)
+    vec_scaled = X_scaler.transform(vec)
+
+    prediction_scaled = model.predict(vec_scaled, verbose=0)
+    prediction = y_scaler.inverse_transform(prediction_scaled)[0]
+
+    # Per-feature error between input and model's correction
+    input_vals = np.array([features[f] for f in feature_cols])
+    errors = np.abs(input_vals - prediction)
+    max_error = float(np.max(errors))
+
+    # Score: 100 = no correction needed, 0 = huge correction
+    score = max(0.0, 100.0 * (1.0 - max_error / 60.0))
+
+    return score, max_error, prediction, feature_cols
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 # FAULT TEXT
 # ══════════════════════════════════════════════════════════════════════════════
 
-def get_fault_text(features, meta, scaler, reconstruction, exercise):
-    """
-    Compare actual features against ideal reconstruction to identify
-    the most important fault. Returns a short instruction string.
-    """
-    ideal_vec    = scaler.inverse_transform(reconstruction.reshape(1, -1))[0]
-    feature_cols = meta["features"]
-    ideal        = dict(zip(feature_cols, ideal_vec))
-    faults       = []
+def get_fault_text(features, prediction, feature_cols):
+    ideal = dict(zip(feature_cols, prediction))
+    faults = []
 
-    if exercise == "squat":
-        avg_knee        = (features["left_knee_angle"] + features["right_knee_angle"]) / 2
-        ideal_knee      = (ideal["left_knee_angle"] + ideal["right_knee_angle"]) / 2
-        avg_hip_depth   = (features["hip_depth_left"] + features["hip_depth_right"]) / 2
-        ideal_hip_depth = (ideal["hip_depth_left"] + ideal["hip_depth_right"]) / 2
+    avg_raise   = (features["left_arm_raise"] + features["right_arm_raise"]) / 2
+    ideal_raise = (ideal["left_arm_raise"] + ideal["right_arm_raise"]) / 2
+    avg_elbow   = (features["left_elbow_angle"] + features["right_elbow_angle"]) / 2
+    ideal_elbow = (ideal["left_elbow_angle"] + ideal["right_elbow_angle"]) / 2
 
-        if avg_knee - ideal_knee > 15:
-            faults.append((avg_knee - ideal_knee, "GO DEEPER"))
-        if features["torso_lean"] - ideal["torso_lean"] > 10:
-            faults.append((features["torso_lean"] - ideal["torso_lean"], "KEEP BACK STRAIGHT"))
-        if features["left_knee_valgus"] - ideal["left_knee_valgus"] > 0.04:
-            faults.append((0.5, "LEFT KNEE CAVING IN"))
-        if features["right_knee_valgus"] - ideal["right_knee_valgus"] < -0.04:
-            faults.append((0.5, "RIGHT KNEE CAVING IN"))
-        if avg_hip_depth - ideal_hip_depth > 0.03:
-            faults.append((avg_hip_depth - ideal_hip_depth, "HIPS TOO HIGH"))
-
-    else:
-        avg_raise   = (features["left_arm_raise"] + features["right_arm_raise"]) / 2
-
-        # Hard rules for obvious extremes
-        if avg_raise > 110:
-            return "ARMS TOO HIGH"
-        if avg_raise < 35:
-            return "RAISE ARMS HIGHER"
-
-
-        ideal_raise = (ideal["left_arm_raise"] + ideal["right_arm_raise"]) / 2
-        avg_elbow   = (features["left_elbow_angle"] + features["right_elbow_angle"]) / 2
-        ideal_elbow = (ideal["left_elbow_angle"] + ideal["right_elbow_angle"]) / 2
-
-        if ideal_raise - avg_raise > 15:
-            faults.append((ideal_raise - avg_raise, "RAISE ARMS HIGHER"))
-        if avg_raise - ideal_raise > 8:
-            faults.append((avg_raise - ideal_raise, "ARMS TOO HIGH"))
-        if ideal_elbow - avg_elbow > 20:
-            faults.append((ideal_elbow - avg_elbow, "BEND ELBOWS LESS"))
-        if features["torso_lean"] - ideal["torso_lean"] > 10:
-            faults.append((features["torso_lean"] - ideal["torso_lean"], "STOP SWINGING"))
-        if features["arm_symmetry"] - ideal["arm_symmetry"] > 15:
-            faults.append((features["arm_symmetry"], "EVEN OUT YOUR ARMS"))
+    if ideal_raise - avg_raise > 15:
+        faults.append((ideal_raise - avg_raise, "RAISE ARMS HIGHER"))
+    if avg_raise - ideal_raise > 8:
+        faults.append((avg_raise - ideal_raise, "ARMS TOO HIGH"))
+    if ideal_elbow - avg_elbow > 20:
+        faults.append((ideal_elbow - avg_elbow, "BEND ELBOWS LESS"))
+    if features["torso_lean"] - ideal["torso_lean"] > 10:
+        faults.append((features["torso_lean"] - ideal["torso_lean"], "STOP SWINGING"))
+    if features["arm_symmetry"] - ideal["arm_symmetry"] > 15:
+        faults.append((features["arm_symmetry"], "EVEN OUT YOUR ARMS"))
 
     if not faults:
         return ""
     faults.sort(reverse=True)
     return faults[0][1]
-
 
 # ══════════════════════════════════════════════════════════════════════════════
 # GHOST SKELETON
@@ -327,79 +299,46 @@ def place_joint_at_angle(anchor, far_anchor, bone_len, ideal_angle_deg, side="le
     return np.clip(joint_pos, 0.0, 1.0)
 
 
-def reconstruction_to_landmarks(reconstruction, scaler, meta, actual_landmarks):
-    ideal_vec    = scaler.inverse_transform(reconstruction.reshape(1, -1))[0]
-    feature_cols = meta["features"]
-    ideal        = dict(zip(feature_cols, ideal_vec))
+def reconstruction_to_landmarks(prediction, feature_cols, actual_landmarks):
+    ideal = dict(zip(feature_cols, prediction))
 
     def lm_xy(lm_enum):
         lm = actual_landmarks[lm_enum.value]
         return np.array([lm.x, lm.y])
 
-    # Start with all actual landmarks as base
     ghost = {lm_enum: lm_xy(lm_enum) for lm_enum in LM}
 
-    if "left_knee_angle" in ideal:
-        # SQUAT — reposition knees and shoulders
-        for side, hip_lm, knee_lm, ankle_lm in [
-            ("left",  LM.LEFT_HIP,  LM.LEFT_KNEE,  LM.LEFT_ANKLE),
-            ("right", LM.RIGHT_HIP, LM.RIGHT_KNEE, LM.RIGHT_ANKLE),
-        ]:
-            hip_pos     = lm_xy(hip_lm)
-            ankle_pos   = lm_xy(ankle_lm)
-            actual_knee = lm_xy(knee_lm)
-            femur_len   = np.linalg.norm(actual_knee - hip_pos)
-            ideal_angle = float(np.clip(ideal.get(f"{side}_knee_angle", 90.0), 30.0, 170.0))
-            ghost[knee_lm]  = place_joint_at_angle(hip_pos, ankle_pos, femur_len, ideal_angle, side)
-            ghost[hip_lm]   = hip_pos
-            ghost[ankle_lm] = ankle_pos
-
-        ideal_lean = float(np.clip(ideal.get("torso_lean", 15.0), 0.0, 60.0))
-        lean_rad   = np.radians(ideal_lean)
-        for hip_lm, shoulder_lm in [
-            (LM.LEFT_HIP, LM.LEFT_SHOULDER),
-            (LM.RIGHT_HIP, LM.RIGHT_SHOULDER),
-        ]:
-            hip_pos   = lm_xy(hip_lm)
-            actual_sh = lm_xy(shoulder_lm)
-            torso_len = np.linalg.norm(actual_sh - hip_pos)
-            direction = np.array([np.sin(lean_rad), -np.cos(lean_rad)])
-            ghost[shoulder_lm] = np.clip(hip_pos + torso_len * direction, 0.0, 1.0)
-
-    else:
-        # LATERAL RAISE — reposition elbows and wrists
-        for side, shoulder_lm, elbow_lm, wrist_lm, hip_lm in [
-            ("left",  LM.LEFT_SHOULDER,  LM.LEFT_ELBOW,  LM.LEFT_WRIST,  LM.LEFT_HIP),
-            ("right", LM.RIGHT_SHOULDER, LM.RIGHT_ELBOW, LM.RIGHT_WRIST, LM.RIGHT_HIP),
-        ]:
-            shoulder_pos  = lm_xy(shoulder_lm)
-            hip_pos       = lm_xy(hip_lm)
-            actual_elbow  = lm_xy(elbow_lm)
-            actual_wrist  = lm_xy(wrist_lm)
-            upper_arm_len = np.linalg.norm(actual_elbow - shoulder_pos)
-            forearm_len   = np.linalg.norm(actual_wrist - actual_elbow)
-            ideal_raise       = float(np.clip(ideal.get(f"{side}_arm_raise", 90.0), 30.0, 150.0))
-            ideal_elbow_angle = float(np.clip(ideal.get(f"{side}_elbow_angle", 160.0), 90.0, 180.0))
-            torso_vec = hip_pos - shoulder_pos
-            torso_dir = torso_vec / (np.linalg.norm(torso_vec) + 1e-6)
-            raise_rad = np.radians(ideal_raise)
-            sign      = 1 if side == "left" else -1
-            cos_r, sin_r = np.cos(raise_rad), np.sin(raise_rad)
-            rot  = np.array([[cos_r, sign * -sin_r], [sin_r, sign * cos_r]])
-            upper_arm_dir   = rot @ (-torso_dir)
-            ideal_elbow_pos = shoulder_pos + upper_arm_len * upper_arm_dir
-            elbow_bend_rad  = np.radians(180.0 - ideal_elbow_angle)
-            cos_e, sin_e    = np.cos(elbow_bend_rad), np.sin(elbow_bend_rad)
-            rot2            = np.array([[cos_e, -sin_e], [sin_e, cos_e]])
-            forearm_dir     = rot2 @ upper_arm_dir
-            ideal_wrist_pos = ideal_elbow_pos + forearm_len * forearm_dir
-            ghost[shoulder_lm] = shoulder_pos
-            ghost[hip_lm]      = hip_pos
-            ghost[elbow_lm]    = np.clip(ideal_elbow_pos, 0.0, 1.0)
-            ghost[wrist_lm]    = np.clip(ideal_wrist_pos, 0.0, 1.0)
+    for side, shoulder_lm, elbow_lm, wrist_lm, hip_lm in [
+        ("left",  LM.LEFT_SHOULDER,  LM.LEFT_ELBOW,  LM.LEFT_WRIST,  LM.LEFT_HIP),
+        ("right", LM.RIGHT_SHOULDER, LM.RIGHT_ELBOW, LM.RIGHT_WRIST, LM.RIGHT_HIP),
+    ]:
+        shoulder_pos  = lm_xy(shoulder_lm)
+        hip_pos       = lm_xy(hip_lm)
+        actual_elbow  = lm_xy(elbow_lm)
+        actual_wrist  = lm_xy(wrist_lm)
+        upper_arm_len = np.linalg.norm(actual_elbow - shoulder_pos)
+        forearm_len   = np.linalg.norm(actual_wrist - actual_elbow)
+        ideal_raise       = float(np.clip(ideal.get(f"{side}_arm_raise", 90.0), 30.0, 150.0))
+        ideal_elbow_angle = float(np.clip(ideal.get(f"{side}_elbow_angle", 160.0), 90.0, 180.0))
+        torso_vec = hip_pos - shoulder_pos
+        torso_dir = torso_vec / (np.linalg.norm(torso_vec) + 1e-6)
+        raise_rad = np.radians(ideal_raise)
+        sign      = 1 if side == "left" else -1
+        cos_r, sin_r = np.cos(raise_rad), np.sin(raise_rad)
+        rot  = np.array([[cos_r, sign * -sin_r], [sin_r, sign * cos_r]])
+        upper_arm_dir   = rot @ (-torso_dir)
+        ideal_elbow_pos = shoulder_pos + upper_arm_len * upper_arm_dir
+        elbow_bend_rad  = np.radians(180.0 - ideal_elbow_angle)
+        cos_e, sin_e    = np.cos(elbow_bend_rad), np.sin(elbow_bend_rad)
+        rot2            = np.array([[cos_e, -sin_e], [sin_e, cos_e]])
+        forearm_dir     = rot2 @ upper_arm_dir
+        ideal_wrist_pos = ideal_elbow_pos + forearm_len * forearm_dir
+        ghost[shoulder_lm] = shoulder_pos
+        ghost[hip_lm]      = hip_pos
+        ghost[elbow_lm]    = np.clip(ideal_elbow_pos, 0.0, 1.0)
+        ghost[wrist_lm]    = np.clip(ideal_wrist_pos, 0.0, 1.0)
 
     return ghost
-
 
 # ══════════════════════════════════════════════════════════════════════════════
 # DRAWING
@@ -484,23 +423,13 @@ def draw_hud(frame, exercise, score, is_bad, h, w, fault_text=""):
 # MAIN LOOP
 # ══════════════════════════════════════════════════════════════════════════════
 
-def run(start_exercise="squat"):
+def run(start_exercise="lateral raise"):
     print("Loading models...")
-    models = {}
-    for ex in ["squat", "lateral raise"]:
-        autoencoder, encoder, decoder, scaler, meta = load_model_artifacts(ex)
-        models[ex] = {
-            "autoencoder": autoencoder,
-            "encoder":     encoder,
-            "decoder":     decoder,
-            "scaler":      scaler,
-            "meta":        meta,
-        }
-    print("Models loaded. Opening webcam...")
+    model, X_scaler, y_scaler, meta = load_model_artifacts("lateral raise")
+    print("Model loaded. Opening webcam...")
 
-    current_exercise = start_exercise
-    smoother         = Smoother(window=5)
-    cap              = cv2.VideoCapture(0)
+    smoother    = Smoother(window=5)
+    cap         = cv2.VideoCapture(0)
 
     if not cap.isOpened():
         print("[ERROR] Could not open webcam.")
@@ -529,23 +458,12 @@ def run(start_exercise="squat"):
             rgb    = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             result = pose.process(rgb)
 
-            m = models[current_exercise]
-            ghost_connections = (SQUAT_GHOST_CONNECTIONS
-                                 if current_exercise == "squat"
-                                 else LATERAL_RAISE_GHOST_CONNECTIONS)
-
             if result.pose_landmarks:
                 landmarks  = result.pose_landmarks.landmark
-                extract_fn = FEATURE_EXTRACTORS[current_exercise]
-                features   = extract_fn(landmarks)
+                features   = extract_lateral_raise_features(landmarks)
 
-                if current_exercise == "lateral raise":
-                    avg_raise = (features["left_arm_raise"] + features["right_arm_raise"]) / 2
-                    if avg_raise > 110 or avg_raise < 35:
-                        is_bad = True
-
-                raw_score, error, reconstruction, raw_is_bad = score_form(
-                    features, m["meta"], m["scaler"], m["autoencoder"]
+                raw_score, max_error, prediction, feature_cols = score_form(
+                    features, meta, X_scaler, y_scaler, model
                 )
 
                 actual_lms = actual_landmarks_to_dict(landmarks)
@@ -555,55 +473,31 @@ def run(start_exercise="squat"):
                 is_bad     = score < 70
 
                 if is_bad:
-                    ghost_lms  = reconstruction_to_landmarks(
-                        reconstruction, m["scaler"], m["meta"], landmarks
-                    )
-                    fault_text = get_fault_text(
-                        features, m["meta"], m["scaler"], reconstruction, current_exercise
-                    )
+                    ghost_lms = reconstruction_to_landmarks(prediction, feature_cols, landmarks)
+                    fault_text = get_fault_text(features, prediction, feature_cols)
                 else:
                     ghost_lms  = {}
                     fault_text = ""
 
                 # Draw actual skeleton
-                score_color = score_to_color(score)
-                cv2.putText(frame, f"Form: {score:.0f}/100", (15, 62),
-
-            cv2.FONT_HERSHEY_SIMPLEX, 0.7, score_color, 2)
                 draw_skeleton(frame, actual_lms, CONNECTIONS, score_to_color(score),
                               SKELETON_THICKNESS, h, w)
 
                 # Draw ghost skeleton
                 if ghost_lms:
-                    draw_skeleton(frame, ghost_lms, ghost_connections, COLOR_GHOST,
-                                  GHOST_THICKNESS, h, w)
+                    draw_skeleton(frame, ghost_lms, LATERAL_RAISE_GHOST_CONNECTIONS,
+                                  COLOR_GHOST, GHOST_THICKNESS, h, w)
 
-            draw_hud(frame, current_exercise, score, is_bad, h, w, fault_text)
+            draw_hud(frame, "lateral raise", score, is_bad, h, w, fault_text)
             cv2.imshow("Workout Form Analyzer", frame)
 
             key = cv2.waitKey(1) & 0xFF
             if key == ord("q"):
                 break
-            elif key == ord("s"):
-                current_exercise = "squat"
-                smoother.reset()
-                ghost_lms  = {}
-                fault_text = ""
-                print("Switched to: squat")
-            elif key == ord("l"):
-                current_exercise = "lateral raise"
-                smoother.reset()
-                ghost_lms  = {}
-                fault_text = ""
-                print("Switched to: lateral raise")
 
     cap.release()
     cv2.destroyAllWindows()
     print("Session ended.")
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# ENTRY POINT
-# ══════════════════════════════════════════════════════════════════════════════
-
-run(start_exercise="squat")
+run(start_exercise="lateral raise")

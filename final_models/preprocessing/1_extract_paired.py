@@ -1,6 +1,28 @@
 """
 Extract Paired Landmarks for Supervised Training
 ==================================================
+Processes paired bad-form and good-form lateral raise videos.
+Extracts MediaPipe joint angles from each pair and outputs a single CSV
+with _bad and _good columns, ready for supervised model training.
+
+Folder structure expected:
+    videos/
+    ├── bad/
+    │   ├── badform_1.MOV
+    │   ├── badform_2.MOV
+    │   └── ...
+    └── good/
+        ├── goodform_1.MOV
+        ├── goodform_2.MOV
+        └── ...
+
+Pairing: badform_N matched with goodform_N by number.
+
+Usage:
+    python extract_paired.py
+
+Output:
+    paired_data.csv
 """
 
 import cv2
@@ -18,8 +40,8 @@ LM = mp_pose.PoseLandmark
 # CONFIG
 # ══════════════════════════════════════════════════════════════════════════════
 
-VIDEO_DIR = Path(__file__).parent.parent / "videos"
-OUTPUT_CSV  = "paired_data.csv"
+VIDEO_DIR   = "/Users/mauriceengel/code/saintlouisleetokyowest-bot/ai_form/final_models/videos"
+OUTPUT_CSV  = "preprocessing/paired_data.csv"
 FRAME_SKIP  = 3
 
 LATERAL_RAISE_FEATURES = [

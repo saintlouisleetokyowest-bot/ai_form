@@ -39,59 +39,6 @@ np.random.seed(RANDOM_SEED)
 # Positive bias = increase the value, negative = decrease.
 # For angles in degrees; for positional features in normalised coords.
 
-SQUAT_MISTAKES = [
-    {
-        "name": "knees_caving_in",
-        "description": "Knee valgus — knees collapse inward during descent",
-        "perturbations": {
-            "left_knee_valgus":  (0.06, 0.02),    # knee drifts inward
-            "right_knee_valgus": (-0.06, 0.02),   # knee drifts inward (opposite sign)
-            "left_knee_angle":   (5.0, 3.0),      # slightly less bent (compensating)
-            "right_knee_angle":  (5.0, 3.0),
-        }
-    },
-    {
-        "name": "not_deep_enough",
-        "description": "Shallow squat — hips stay too high",
-        "perturbations": {
-            "left_knee_angle":   (25.0, 10.0),    # knees much straighter
-            "right_knee_angle":  (25.0, 10.0),
-            "hip_depth_left":    (0.06, 0.02),    # hips higher relative to knees
-            "hip_depth_right":   (0.06, 0.02),
-            "left_hip_angle":    (15.0, 5.0),     # hips less flexed
-            "right_hip_angle":   (15.0, 5.0),
-        }
-    },
-    {
-        "name": "excessive_forward_lean",
-        "description": "Torso tips too far forward — back not upright",
-        "perturbations": {
-            "torso_lean":        (15.0, 5.0),     # big forward lean
-            "left_hip_angle":    (-10.0, 4.0),    # hips close more
-            "right_hip_angle":   (-10.0, 4.0),
-        }
-    },
-    {
-        "name": "asymmetric_descent",
-        "description": "One side drops more than the other — weight shift",
-        "perturbations": {
-            "left_knee_angle":   (-15.0, 5.0),    # left goes deeper
-            "right_knee_angle":  (10.0, 5.0),     # right stays higher
-            "hip_depth_left":    (-0.04, 0.01),
-            "hip_depth_right":   (0.03, 0.01),
-        }
-    },
-    {
-        "name": "heels_rising",
-        "description": "Ankles lose dorsiflexion — heels come off ground",
-        "perturbations": {
-            "left_ankle_angle":  (-20.0, 8.0),    # ankle angle decreases
-            "right_ankle_angle": (-20.0, 8.0),
-            "torso_lean":        (8.0, 3.0),      # compensatory lean
-        }
-    },
-]
-
 LATERAL_RAISE_MISTAKES = [
     {
         "name": "arms_too_high",
@@ -139,19 +86,10 @@ LATERAL_RAISE_MISTAKES = [
 ]
 
 EXERCISE_MISTAKES = {
-    "squat":         SQUAT_MISTAKES,
     "lateral raise": LATERAL_RAISE_MISTAKES,
 }
 
 EXERCISE_FEATURES = {
-    "squat": [
-        "left_knee_angle", "right_knee_angle",
-        "left_hip_angle", "right_hip_angle",
-        "torso_lean",
-        "left_knee_valgus", "right_knee_valgus",
-        "hip_depth_left", "hip_depth_right",
-        "left_ankle_angle", "right_ankle_angle",
-    ],
     "lateral raise": [
         "left_arm_raise", "right_arm_raise",
         "left_elbow_angle", "right_elbow_angle",
