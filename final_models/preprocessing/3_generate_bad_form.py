@@ -21,8 +21,9 @@ import pandas as pd
 from pathlib import Path
 
 # ── Config ─────────────────────────────────────────────────────────────────────
-INPUT_CSV  = "new_angles.csv"
-OUTPUT_CSV = "synthetic_paired_data.csv"
+
+INPUT_CSV  = str(Path(__file__).parent / "new_angles.csv")
+OUTPUT_CSV = str(Path(__file__).parent / "synthetic_paired_data.csv")
 VARIANTS_PER_FRAME = 3       # How many bad variants to generate per good frame
 RANDOM_SEED = 42
 

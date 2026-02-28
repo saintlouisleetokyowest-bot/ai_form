@@ -25,7 +25,7 @@ mp_drawing = mp.solutions.drawing_utils
 LM         = mp_pose.PoseLandmark
 
 # ── Paths ──────────────────────────────────────────────────────────────────────
-MODELS_DIR = Path("/Users/mauriceengel/code/saintlouisleetokyowest-bot/ai_form/final_models/models/maurice_model/saved_models")
+MODELS_DIR = Path(__file__).parent / "saved_models"
 
 # ── Visual config ──────────────────────────────────────────────────────────────
 COLOR_USER_GOOD    = (0,   255, 0)    # Green  — good form

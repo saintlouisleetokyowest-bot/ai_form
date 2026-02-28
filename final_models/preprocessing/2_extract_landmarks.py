@@ -238,6 +238,6 @@ def process_directory(video_dir, output_csv="angles.csv", frame_skip=3):
 
 process_directory(
     video_dir="/Users/mauriceengel/code/saintlouisleetokyowest-bot/ai_form/final_models_more_videos",
-    output_csv="/Users/mauriceengel/code/saintlouisleetokyowest-bot/ai_form/final_models/preprocessing/new_angles.csv",
+    output_csv=str(Path(__file__).parent / "new_angles.csv"),
     frame_skip=3
 )

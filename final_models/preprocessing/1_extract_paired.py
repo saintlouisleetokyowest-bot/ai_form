@@ -40,8 +40,9 @@ LM = mp_pose.PoseLandmark
 # CONFIG
 # ══════════════════════════════════════════════════════════════════════════════
 
-VIDEO_DIR   = "/Users/mauriceengel/code/saintlouisleetokyowest-bot/ai_form/final_models/videos"
-OUTPUT_CSV  = "preprocessing/paired_data.csv"
+BASE_DIR   = Path(__file__).parent.parent  # final_models/
+VIDEO_DIR  = BASE_DIR / "videos"
+OUTPUT_CSV = Path(__file__).parent / "paired_data.csv"
 FRAME_SKIP  = 3
 
 LATERAL_RAISE_FEATURES = [
