@@ -56,17 +56,6 @@ CONNECTIONS = [
     (LM.RIGHT_HEEL,     LM.RIGHT_FOOT_INDEX),
 ]
 
-SQUAT_GHOST_CONNECTIONS = [
-    (LM.LEFT_SHOULDER,  LM.RIGHT_SHOULDER),
-    (LM.LEFT_SHOULDER,  LM.LEFT_HIP),
-    (LM.RIGHT_SHOULDER, LM.RIGHT_HIP),
-    (LM.LEFT_HIP,       LM.RIGHT_HIP),
-    (LM.LEFT_HIP,       LM.LEFT_KNEE),
-    (LM.LEFT_KNEE,      LM.LEFT_ANKLE),
-    (LM.RIGHT_HIP,      LM.RIGHT_KNEE),
-    (LM.RIGHT_KNEE,     LM.RIGHT_ANKLE),
-]
-
 LATERAL_RAISE_GHOST_CONNECTIONS = [
     (LM.LEFT_SHOULDER,  LM.RIGHT_SHOULDER),
     (LM.LEFT_SHOULDER,  LM.LEFT_HIP),
@@ -85,7 +74,7 @@ LATERAL_RAISE_GHOST_CONNECTIONS = [
 
 class Smoother:
     """Rolling average smoother for scores and landmark positions."""
-    def __init__(self, window=5):
+    def __init__(self, window=5): #Averages score over 5 frames to make results less jittery
         self.window = window
         self.scores = deque(maxlen=window)
         self.lm_buf = deque(maxlen=window)
@@ -158,40 +147,6 @@ def midpoint(a, b):
 # FEATURE EXTRACTION
 # ══════════════════════════════════════════════════════════════════════════════
 
-def extract_squat_features(landmarks):
-    l_hip      = get_coords(landmarks, LM.LEFT_HIP)
-    r_hip      = get_coords(landmarks, LM.RIGHT_HIP)
-    l_knee     = get_coords(landmarks, LM.LEFT_KNEE)
-    r_knee     = get_coords(landmarks, LM.RIGHT_KNEE)
-    l_ankle    = get_coords(landmarks, LM.LEFT_ANKLE)
-    r_ankle    = get_coords(landmarks, LM.RIGHT_ANKLE)
-    l_shoulder = get_coords(landmarks, LM.LEFT_SHOULDER)
-    r_shoulder = get_coords(landmarks, LM.RIGHT_SHOULDER)
-    l_heel     = get_coords(landmarks, LM.LEFT_HEEL)
-    r_heel     = get_coords(landmarks, LM.RIGHT_HEEL)
-    l_foot     = get_coords(landmarks, LM.LEFT_FOOT_INDEX)
-    r_foot     = get_coords(landmarks, LM.RIGHT_FOOT_INDEX)
-    mid_hip      = midpoint(l_hip, r_hip)
-    mid_shoulder = midpoint(l_shoulder, r_shoulder)
-    spine_vec    = mid_shoulder - mid_hip
-    vertical     = np.array([0, -1, 0])
-    cosine       = np.dot(spine_vec, vertical) / (np.linalg.norm(spine_vec) + 1e-6)
-
-    return {
-        "left_knee_angle":   angle_between(l_hip, l_knee, l_ankle),
-        "right_knee_angle":  angle_between(r_hip, r_knee, r_ankle),
-        "left_hip_angle":    angle_between(l_shoulder, l_hip, l_knee),
-        "right_hip_angle":   angle_between(r_shoulder, r_hip, r_knee),
-        "torso_lean":        np.degrees(np.arccos(np.clip(cosine, -1, 1))),
-        "left_knee_valgus":  float(l_knee[0] - l_foot[0]),
-        "right_knee_valgus": float(r_knee[0] - r_foot[0]),
-        "hip_depth_left":    float(l_hip[1] - l_knee[1]),
-        "hip_depth_right":   float(r_hip[1] - r_knee[1]),
-        "left_ankle_angle":  angle_between(l_knee, l_ankle, l_heel),
-        "right_ankle_angle": angle_between(r_knee, r_ankle, r_heel),
-    }
-
-
 def extract_lateral_raise_features(landmarks):
     l_shoulder = get_coords(landmarks, LM.LEFT_SHOULDER)
     r_shoulder = get_coords(landmarks, LM.RIGHT_SHOULDER)
@@ -221,12 +176,6 @@ def extract_lateral_raise_features(landmarks):
     }
 
 
-FEATURE_EXTRACTORS = {
-    "squat":         extract_squat_features,
-    "lateral raise": extract_lateral_raise_features,
-}
-
-
 # ══════════════════════════════════════════════════════════════════════════════
 # FORM SCORING
 # ══════════════════════════════════════════════════════════════════════════════
@@ -239,13 +188,10 @@ def score_form(features, meta, X_scaler, y_scaler, model):
     prediction_scaled = model.predict(vec_scaled, verbose=0)
     prediction = y_scaler.inverse_transform(prediction_scaled)[0]
 
-    # Per-feature error between input and model's correction
     input_vals = np.array([features[f] for f in feature_cols])
-    errors = np.abs(input_vals - prediction)
+    errors    = np.abs(input_vals - prediction)
     max_error = float(np.max(errors))
-
-    # Score: 100 = no correction needed, 0 = huge correction
-    score = max(0.0, 100.0 * (1.0 - max_error / 60.0))
+    score     = max(0.0, 100.0 * (1.0 - max_error / 60.0))
 
     return score, max_error, prediction, feature_cols
 
@@ -282,22 +228,6 @@ def get_fault_text(features, prediction, feature_cols):
 # ══════════════════════════════════════════════════════════════════════════════
 # GHOST SKELETON
 # ══════════════════════════════════════════════════════════════════════════════
-
-def place_joint_at_angle(anchor, far_anchor, bone_len, ideal_angle_deg, side="left"):
-    anchor_to_far = far_anchor - anchor
-    total_len     = np.linalg.norm(anchor_to_far)
-    if total_len < 1e-6 or bone_len < 1e-6:
-        return anchor + np.array([0, bone_len])
-    axis_dir  = anchor_to_far / total_len
-    perp      = np.array([-axis_dir[1], axis_dir[0]])
-    if side == "right":
-        perp = -perp
-    angle_rad = np.radians(ideal_angle_deg)
-    along     = bone_len * np.cos(np.pi - angle_rad)
-    across    = bone_len * np.sin(np.pi - angle_rad)
-    joint_pos = anchor + along * axis_dir + across * perp
-    return np.clip(joint_pos, 0.0, 1.0)
-
 
 def reconstruction_to_landmarks(prediction, feature_cols, actual_landmarks):
     ideal = dict(zip(feature_cols, prediction))
@@ -354,11 +284,6 @@ def draw_skeleton(frame, landmarks, connections, color, thickness, h, w):
         pt = (int(pos[0] * w), int(pos[1] * h))
         cv2.circle(frame, pt, LANDMARK_RADIUS, color, -1)
 
-    # Head circle at nose
-    if LM.NOSE in landmarks:
-        nose = (int(landmarks[LM.NOSE][0] * w), int(landmarks[LM.NOSE][1] * h))
-        cv2.circle(frame, nose, 18, color, 2)
-
 def actual_landmarks_to_dict(landmarks):
     return {lm_enum: np.array([landmarks[lm_enum.value].x, landmarks[lm_enum.value].y])
             for lm_enum in LM}
@@ -410,7 +335,7 @@ def draw_hud(frame, exercise, score, is_bad, h, w, fault_text=""):
                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, score_to_color(score), 2)
 
     # Controls hint
-    cv2.putText(frame, "S=Squat  L=Lateral Raise  Q=Quit", (10, h - 10),
+    cv2.putText(frame, "Q=Quit", (10, h - 10),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.45, (150, 150, 150), 1)
 
     # Ghost legend
@@ -437,10 +362,10 @@ def run(start_exercise="lateral raise"):
 
     with mp_pose.Pose(
         static_image_mode=False,
-        model_complexity=1,
+        model_complexity=2,
         smooth_landmarks=True,
-        min_detection_confidence=0.5,
-        min_tracking_confidence=0.5,
+        min_detection_confidence=0.7,
+        min_tracking_confidence=0.7,
     ) as pose:
 
         score      = 100.0
@@ -461,23 +386,34 @@ def run(start_exercise="lateral raise"):
             if result.pose_landmarks:
                 landmarks  = result.pose_landmarks.landmark
                 features   = extract_lateral_raise_features(landmarks)
-
-                raw_score, max_error, prediction, feature_cols = score_form(
-                    features, meta, X_scaler, y_scaler, model
-                )
-
                 actual_lms = actual_landmarks_to_dict(landmarks)
-                smoother.update(raw_score, actual_lms)
-                score      = smoother.smooth_score()
-                actual_lms = smoother.smooth_landmarks()
-                is_bad     = score < 70
 
-                if is_bad:
-                    ghost_lms = reconstruction_to_landmarks(prediction, feature_cols, landmarks)
-                    fault_text = get_fault_text(features, prediction, feature_cols)
-                else:
+                avg_raise = (features["left_arm_raise"] + features["right_arm_raise"]) / 2
+
+                if avg_raise < 30:
+                    score      = 100.0
+                    is_bad     = False
                     ghost_lms  = {}
                     fault_text = ""
+                    smoother.reset()
+                else:
+                    raw_score, max_error, prediction, feature_cols = score_form(
+                        features, meta, X_scaler, y_scaler, model
+                    )
+
+                    print(f"Raise: L={features['left_arm_raise']:.0f} R={features['right_arm_raise']:.0f} | Predicted: L={prediction[0]:.0f} R={prediction[1]:.0f} | Score: {raw_score:.0f}")
+
+                    smoother.update(raw_score, actual_lms)
+                    score      = smoother.smooth_score()
+                    actual_lms = smoother.smooth_landmarks()
+                    is_bad     = score < 70
+
+                    if is_bad:
+                        ghost_lms = reconstruction_to_landmarks(prediction, feature_cols, landmarks)
+                        fault_text = get_fault_text(features, prediction, feature_cols)
+                    else:
+                        ghost_lms  = {}
+                        fault_text = ""
 
                 # Draw actual skeleton
                 draw_skeleton(frame, actual_lms, CONNECTIONS, score_to_color(score),
