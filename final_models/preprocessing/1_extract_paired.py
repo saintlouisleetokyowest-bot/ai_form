@@ -4,25 +4,6 @@ Extract Paired Landmarks for Supervised Training
 Processes paired bad-form and good-form lateral raise videos.
 Extracts MediaPipe joint angles from each pair and outputs a single CSV
 with _bad and _good columns, ready for supervised model training.
-
-Folder structure expected:
-    videos/
-    ├── bad/
-    │   ├── badform_1.MOV
-    │   ├── badform_2.MOV
-    │   └── ...
-    └── good/
-        ├── goodform_1.MOV
-        ├── goodform_2.MOV
-        └── ...
-
-Pairing: badform_N matched with goodform_N by number.
-
-Usage:
-    python extract_paired.py
-
-Output:
-    paired_data.csv
 """
 
 import cv2
@@ -62,7 +43,7 @@ LATERAL_RAISE_FEATURES = [
 # ══════════════════════════════════════════════════════════════════════════════
 
 def get_coords(landmarks, landmark_enum):
-    """Extract (x, y, z) from a landmark."""
+    """Extract (x, y, z) from a landmark.""" # Width, height, and depth
     lm = landmarks[landmark_enum.value]
     return np.array([lm.x, lm.y, lm.z])
 
@@ -85,7 +66,7 @@ def midpoint(a, b):
 # ══════════════════════════════════════════════════════════════════════════════
 
 def extract_lateral_raise_angles(landmarks):
-    """Extract biomechanically relevant angles for lateral raise form."""
+    """Extract relevant angles for lateral raise form."""
     l_shoulder = get_coords(landmarks, LM.LEFT_SHOULDER)
     r_shoulder = get_coords(landmarks, LM.RIGHT_SHOULDER)
     l_elbow    = get_coords(landmarks, LM.LEFT_ELBOW)
@@ -120,7 +101,7 @@ def extract_lateral_raise_angles(landmarks):
 def is_active(features):
     """Returns True if the person is actively raising (not arms at rest)."""
     avg_raise = (features["left_arm_raise"] + features["right_arm_raise"]) / 2
-    return avg_raise > 30
+    return avg_raise > 30 #Original 30, experiment with 40
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -144,14 +125,14 @@ def extract_frames(video_path, frame_skip=3):
     frame_idx = 0
 
     with mp_pose.Pose(
-        static_image_mode=False,
-        model_complexity=1,
-        smooth_landmarks=True,
-        min_detection_confidence=0.5,
-        min_tracking_confidence=0.5,
+        static_image_mode=False, #False treats input images as a video stream
+        model_complexity=2, #0-1 for model selection. 1 stream, 2 videos
+        smooth_landmarks=True, #Reduces noise
+        min_detection_confidence=0.7, #50% confidence for person detection
+        min_tracking_confidence=0.7, #50% confidence for tracking confidence. Try 0.7
     ) as pose:
         while cap.isOpened():
-            ret, frame = cap.read()
+            ret, frame = cap.read() #Reads frames from the live camera
             if not ret:
                 break
 
@@ -195,7 +176,7 @@ def find_pairs(video_dir):
         raise FileNotFoundError(f"Good form folder not found: {good_dir}")
 
     # Build lookup: number → file path
-    def index_folder(folder, prefix):
+    def index_folder(folder):
         lookup = {}
         for f in sorted(folder.glob("*.*")):
             name = f.stem.lower()  # e.g. "badform_1"
@@ -205,8 +186,8 @@ def find_pairs(video_dir):
                 lookup[num] = f
         return lookup
 
-    bad_files  = index_folder(bad_dir, "badform")
-    good_files = index_folder(good_dir, "goodform")
+    bad_files  = index_folder(bad_dir)
+    good_files = index_folder(good_dir)
 
     # Match pairs
     bad_nums  = set(bad_files.keys())
@@ -234,7 +215,7 @@ def process_pair(pair_num, bad_path, good_path, frame_skip=3):
     """
     Extract frames from one bad/good pair.
 
-    Since bad and good clips may have different frame counts, we align them
+    Clips have ifferent frame counts, so this aligns them
     by sampling the shorter list to match the longer, or taking the minimum
     of both. Each bad frame is paired with the closest good frame by index
     proportion (i.e. frame position within the rep).

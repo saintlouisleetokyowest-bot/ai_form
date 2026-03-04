@@ -191,7 +191,7 @@ def score_form(features, meta, X_scaler, y_scaler, model):
     input_vals = np.array([features[f] for f in feature_cols])
     errors    = np.abs(input_vals - prediction)
     max_error = float(np.max(errors))
-    score     = max(0.0, 100.0 * (1.0 - max_error / 60.0))
+    score     = max(0.0, 100.0 * (1.0 - max_error / 40.0))
 
     return score, max_error, prediction, feature_cols
 
@@ -254,8 +254,9 @@ def reconstruction_to_landmarks(prediction, feature_cols, actual_landmarks):
         torso_dir = torso_vec / (np.linalg.norm(torso_vec) + 1e-6)
         raise_rad = np.radians(ideal_raise)
         sign      = 1 if side == "left" else -1
+        raise_rad = np.radians(ideal_raise) * sign          # flip angle for right side
         cos_r, sin_r = np.cos(raise_rad), np.sin(raise_rad)
-        rot  = np.array([[cos_r, sign * -sin_r], [sin_r, sign * cos_r]])
+        rot  = np.array([[cos_r, -sin_r], [sin_r, cos_r]])  # standard rotation matrix
         upper_arm_dir   = rot @ (-torso_dir)
         ideal_elbow_pos = shoulder_pos + upper_arm_len * upper_arm_dir
         elbow_bend_rad  = np.radians(180.0 - ideal_elbow_angle)

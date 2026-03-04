@@ -1,19 +1,17 @@
 """
 Generate Synthetic Bad-Form Data
 =================================
-Takes your existing good-form angles.csv and creates paired (bad, good) data
-for supervised training: F(A) → A*
+Takes good-form angles from new_angles.csv and creates paired (bad, good)
+data for supervised training: F(A) → A*
 
 Each good-form frame gets multiple "bad" variants with realistic, patterned
 perturbations that mimic common exercise mistakes — not just random noise.
 
 Usage:
-    python generate_bad_form.py
+    python 3_generate_bad_form.py
 
 Output:
-    paired_data.csv — columns: exercise, variant, [features]_bad, [features]_good
-
-Author: You (guided by Claude)
+    synthetic_paired_data.csv — columns: exercise, variant, [features]_bad, [features]_good
 """
 
 import numpy as np
@@ -230,6 +228,10 @@ def main():
         print(f"  Generated: {len(rows)} (bad, good) pairs")
 
     paired_df = pd.DataFrame(all_rows)
+    # After generating all rows, before saving:
+    for feat in EXERCISE_FEATURES["lateral raise"]:
+        delta = abs(paired_df[f"{feat}_bad"] - paired_df[f"{feat}_good"])
+        paired_df = paired_df[delta < 40]
     paired_df.to_csv(OUTPUT_CSV, index=False)
 
     # ── Summary ───────────────────────────────────────────────────────────────

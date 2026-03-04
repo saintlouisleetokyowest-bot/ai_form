@@ -1,5 +1,6 @@
 {
   "exercise": "lateral raise",
+  "prediction_type": "absolute",
   "input_features": [
     "left_arm_raise_bad",
     "right_arm_raise_bad",
