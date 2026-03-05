@@ -1,0 +1,160 @@
+html,
+body {
+  margin: 0;
+  padding: 0;
+  font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #0f172a;
+  color: #e2e8f0;
+  height: 100%;
+}
+
+#root {
+  height: 100vh;
+}
+
+/* ---- Split-screen layout ---- */
+
+.split-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  height: 100%;
+  padding: 12px;
+  box-sizing: border-box;
+  position: relative;
+}
+
+.split-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+.video-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #0b1224;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+video,
+canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 12px;
+  transform: scaleX(-1);
+}
+
+/* ---- Panel labels ---- */
+
+.panel-label {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.ideal-label {
+  background: rgba(0, 230, 180, 0.2);
+  color: rgba(0, 230, 180, 0.9);
+  border: 1px solid rgba(0, 230, 180, 0.3);
+}
+
+.correction-label {
+  background: rgba(255, 180, 50, 0.2);
+  color: rgba(255, 180, 50, 0.9);
+  border: 1px solid rgba(255, 180, 50, 0.3);
+}
+
+/* ---- Info bar below each panel ---- */
+
+.info-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  font-size: 13px;
+  flex-wrap: wrap;
+}
+
+.info-bar .sep {
+  color: rgba(255, 255, 255, 0.15);
+}
+
+.fault-badge {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.fault-badge.error {
+  background: rgba(248, 113, 113, 0.15);
+  color: #fecdd3;
+  border: 1px solid rgba(248, 113, 113, 0.3);
+}
+
+.fault-badge.warn {
+  background: rgba(250, 204, 21, 0.12);
+  color: #fef9c3;
+  border: 1px solid rgba(250, 204, 21, 0.25);
+}
+
+.fault-badge.info {
+  background: rgba(148, 163, 184, 0.1);
+  color: #cbd5e1;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+/* ---- Status dot indicator ---- */
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ---- Score progress bar ---- */
+
+.score-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.score-bar-track {
+  display: inline-block;
+  width: 60px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  overflow: hidden;
+  vertical-align: middle;
+}
+
+.score-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #f87171, #facc15, #22c55e);
+  transition: width 0.15s ease;
+}

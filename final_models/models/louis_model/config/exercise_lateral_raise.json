@@ -1,0 +1,23 @@
+{
+  "id": "lateral_raise",
+  "phaseCount": 100,
+  "features": {
+    "arm_raise_left": { "kind": "strict", "k": 1.0 },
+    "arm_raise_right": { "kind": "strict", "k": 1.0 },
+    "arm_symmetry": { "kind": "strict", "k": 1.0 },
+    "torso_lean": { "kind": "strict", "k": 1.0 },
+    "hip_drift": { "kind": "strict", "k": 1.0 },
+    "elbow_angle_left": { "kind": "tolerant", "k": 1.5 },
+    "elbow_angle_right": { "kind": "tolerant", "k": 1.5 },
+    "shoulder_elev_left": { "kind": "tolerant", "k": 1.2 },
+    "shoulder_elev_right": { "kind": "tolerant", "k": 1.2 }
+  },
+  "faultTexts": {
+    "arm_raise": "抬至肩高，控制上下幅度。",
+    "symmetry": "左右手同步抬起放下。",
+    "torso": "躯干保持稳定，避免晃动。",
+    "hip": "髋部保持原位，避免借力。",
+    "elbow": "肘微弯即可，避免过弯。",
+    "shrug": "放松肩膀，避免耸肩。"
+  }
+}
