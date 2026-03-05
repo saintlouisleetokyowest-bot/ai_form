@@ -1,0 +1,25 @@
+{
+  "exercise": "lateral raise",
+  "input_features": [
+    "left_arm_raise_bad",
+    "right_arm_raise_bad",
+    "left_elbow_angle_bad",
+    "right_elbow_angle_bad",
+    "torso_lean_bad",
+    "arm_symmetry_bad",
+    "left_wrist_above_shoulder_bad",
+    "right_wrist_above_shoulder_bad"
+  ],
+  "output_features": [
+    "left_arm_raise_good",
+    "right_arm_raise_good",
+    "left_elbow_angle_good",
+    "right_elbow_angle_good",
+    "torso_lean_good",
+    "arm_symmetry_good",
+    "left_wrist_above_shoulder_good",
+    "right_wrist_above_shoulder_good"
+  ],
+  "input_dim": 8,
+  "output_dim": 8
+}
