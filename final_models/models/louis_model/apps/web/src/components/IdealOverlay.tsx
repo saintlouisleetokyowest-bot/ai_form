@@ -76,10 +76,10 @@ function drawGhostUpperBody(ctx: CanvasRenderingContext2D, ghost: GhostUpperBody
   ctx.restore();
 }
 
-const HINT_FONT = "bold 13px 'Inter', sans-serif";
-const HINT_LINE_HEIGHT = 22;
-const HINT_PAD_X = 6;
-const HINT_PAD_Y = 4;
+const HINT_FONT = "bold 24px 'Inter', sans-serif";
+const HINT_LINE_HEIGHT = 39;
+const HINT_PAD_X = 9;
+const HINT_PAD_Y = 6;
 
 function drawHintLabels(
   ctx: CanvasRenderingContext2D,
@@ -91,14 +91,26 @@ function drawHintLabels(
   const h = ctx.canvas.height;
   ctx.font = HINT_FONT;
 
-  // Compute screen-space positions (CSS scaleX(-1) mirrors x)
   const labels = hints.map((hint) => {
-    const midIdx = hint.joints[Math.floor(hint.joints.length / 2)];
-    const p = imageLandmarks[midIdx] ?? imageLandmarks[hint.joints[0]];
+    const isShoulderSymmetry =
+      hint.joints.length === 6 && hint.joints.includes(11) && hint.joints.includes(12);
+    const p11 = imageLandmarks[11];
+    const p12 = imageLandmarks[12];
+
+    let anchorX: number, anchorY: number;
+    if (isShoulderSymmetry && p11 && p12) {
+      const midX = (p11.x + p12.x) / 2;
+      const midY = (p11.y + p12.y) / 2;
+      anchorX = (1 - midX) * w;
+      anchorY = midY * h + 20;
+    } else {
+      const midIdx = hint.joints[Math.floor(hint.joints.length / 2)];
+      const p = imageLandmarks[midIdx] ?? imageLandmarks[hint.joints[0]];
+      anchorX = p ? (1 - p.x) * w + 10 : 10;
+      anchorY = p ? p.y * h : 30;
+    }
     const textW = ctx.measureText(hint.label).width;
-    const screenX = p ? (1 - p.x) * w + 10 : 10;
-    const screenY = p ? p.y * h : 30;
-    return { label: hint.label, color: hint.highlightColor, anchorX: screenX, anchorY: screenY, textW, y: 0 };
+    return { label: hint.label, color: hint.highlightColor, anchorX, anchorY, textW, y: 0 };
   });
 
   labels.sort((a, b) => a.anchorY - b.anchorY);
@@ -109,7 +121,6 @@ function drawHintLabels(
     prevBottom = lbl.y + HINT_LINE_HEIGHT;
   }
 
-  // Counter-transform: pre-flip so CSS scaleX(-1) makes text readable
   ctx.save();
   ctx.translate(w, 0);
   ctx.scale(-1, 1);
@@ -173,8 +184,8 @@ export const IdealOverlay: React.FC<Props> = ({ videoRef, frame, ghostUpperBody,
       ctx.translate(canvas.width, 0);
       ctx.scale(-1, 1);
       ctx.fillStyle = "rgba(0, 230, 180, 0.85)";
-      ctx.font = "bold 13px 'Inter', sans-serif";
-      ctx.fillText(`Phase: ${onlinePhase}`, 12, canvas.height - 16);
+      ctx.font = "bold 20px 'Inter', sans-serif";
+      ctx.fillText(`Phase: ${onlinePhase}`, 18, canvas.height - 24);
       ctx.restore();
     }
   }, [frame, ghostUpperBody, hints, faults, onlinePhase]);

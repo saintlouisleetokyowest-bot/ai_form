@@ -24,17 +24,13 @@ function fallbackOrigin(landmarks: Landmark[]): Vec3 {
   return [0, 0, 0];
 }
 
-/**
- * Build a per-frame body coordinate system to make scoring tolerant to
- * camera yaw/roll and user body translation.
- */
+/** Per-frame body frame for scoring (tolerant to camera yaw/roll and translation). */
 export function toBodyFrame(frame: PoseFrame): BodyFrame {
   const lms = frame.landmarks;
   const hipCenter = pickPairMean([23, 24], lms);
   const shoulderCenter = pickPairMean([11, 12], lms);
   const origin: Vec3 = hipCenter ?? shoulderCenter ?? fallbackOrigin(lms);
 
-  // x axis (left -> right)
   const hipLeft = lms[23];
   const hipRight = lms[24];
   let xAxis: Vec3 | null = null;
@@ -49,7 +45,6 @@ export function toBodyFrame(frame: PoseFrame): BodyFrame {
   }
   if (!xAxis) xAxis = [1, 0, 0];
 
-  // y axis (hip -> shoulder)
   let yAxis: Vec3;
   if (hipCenter && shoulderCenter) {
     yAxis = normalize(sub(shoulderCenter, hipCenter));
@@ -57,12 +52,10 @@ export function toBodyFrame(frame: PoseFrame): BodyFrame {
     yAxis = [0, 1, 0];
   }
 
-  // z axis (forward)
   let zAxis = cross(xAxis, yAxis);
   if (dot(zAxis, zAxis) < 1e-6) zAxis = [0, 0, 1];
   zAxis = normalize(zAxis);
 
-  // re-orthogonalize x to be perpendicular to y & z
   xAxis = normalize(cross(yAxis, zAxis));
   yAxis = normalize(cross(zAxis, xAxis));
 
@@ -88,3 +81,14 @@ export function toBodyFrame(frame: PoseFrame): BodyFrame {
     ts: frame.ts,
   };
 }
+/** World-space Y of a body-frame landmark (shrug detection, invariant to torso lean). */
+export function bodyLandmarkWorldY(fr: BodyFrame, idx: number): number {
+  const bf = fr.bodyLandmarks[idx];
+  if (!bf) return 0;
+  const s = fr.scale || 1;
+  const ax = fr.axes.x;
+  const ay = fr.axes.y;
+  const az = fr.axes.z;
+  return fr.origin[1] + s * (bf[0] * ax[1] + bf[1] * ay[1] + bf[2] * az[1]);
+}
+

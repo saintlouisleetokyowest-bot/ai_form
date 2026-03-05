@@ -1,18 +1,28 @@
 import { Fault, FeatureSequence, FrameFeatures, RealtimeFault, TemplateBand, TemplateBundle } from "./types";
 import { clamp } from "./math";
 
+const KEY_FEATURE_IDS = new Set([
+  "arm_raise_left",
+  "arm_raise_right",
+  "arm_symmetry",
+]);
+
 interface ScoreOptions {
   strictWeight?: number;
   tolerantWeight?: number;
   strictThreshold?: number;
   tolerantThreshold?: number;
+  keyWeight?: number;
+  keyThreshold?: number;
 }
 
 const DEFAULT_OPTIONS: Required<ScoreOptions> = {
   strictWeight: 10,
   tolerantWeight: 5,
-  strictThreshold: 1, // z > 1 starts to penalize
+  strictThreshold: 1,
   tolerantThreshold: 1.5,
+  keyWeight: 16,
+  keyThreshold: 0.8,
 };
 
 function computeExcess(
@@ -38,21 +48,24 @@ function faultMessage(featureId: string): string {
   switch (featureId) {
     case "arm_raise_left":
     case "arm_raise_right":
-      return "Arm raise height out of band (too high/low).";
+      return "Arm height off";
     case "arm_symmetry":
-      return "Left/right arms not moving symmetrically.";
+      return "Arms asymmetric";
     case "torso_lean":
-      return "Torso leaning or swinging.";
+      return "Torso leaning";
     case "hip_drift":
-      return "Hips drifting forward/back/side.";
+      return "Hip drift";
+    case "knee_valgus_left":
+    case "knee_valgus_right":
+      return "Knee valgus (caving in)";
     case "elbow_angle_left":
     case "elbow_angle_right":
-      return "Elbow bend out of band.";
+      return "Elbow angle off";
     case "shoulder_elev_left":
     case "shoulder_elev_right":
-      return "Shoulder shrugging.";
+      return "Shoulder shrugging";
     default:
-      return "Form deviates from template.";
+      return "Form deviation";
   }
 }
 
@@ -60,17 +73,24 @@ function jointsForFeature(featureId: string): number[] {
   switch (featureId) {
     case "arm_raise_left":
     case "elbow_angle_left":
-    case "shoulder_elev_left":
       return [11, 13, 15];
     case "arm_raise_right":
     case "elbow_angle_right":
-    case "shoulder_elev_right":
       return [12, 14, 16];
+    case "shoulder_elev_left":
+      return [11];
+    case "shoulder_elev_right":
+      return [12];
     case "arm_symmetry":
       return [11, 12, 13, 14, 15, 16];
     case "torso_lean":
+      return [0];
     case "hip_drift":
       return [11, 12, 23, 24];
+    case "knee_valgus_left":
+      return [23, 25, 27];
+    case "knee_valgus_right":
+      return [24, 26, 28];
     default:
       return [];
   }
@@ -99,6 +119,7 @@ export function scoreAgainstTemplate(
   const cfg = { ...DEFAULT_OPTIONS, ...options };
   let strictPenalty = 0;
   let tolerantPenalty = 0;
+  let keyPenalty = 0;
   const faults: Fault[] = [];
 
   for (const [featureId, band] of Object.entries(template.features)) {
@@ -106,10 +127,20 @@ export function scoreAgainstTemplate(
     const mask = seq.mask[featureId] ?? [];
     if (values.length === 0) continue;
 
-    const threshold = band.kind === "strict" ? cfg.strictThreshold : cfg.tolerantThreshold;
+    const isKey = KEY_FEATURE_IDS.has(featureId);
+    const threshold = isKey
+      ? cfg.keyThreshold
+      : band.kind === "strict"
+        ? cfg.strictThreshold
+        : cfg.tolerantThreshold;
     const { meanExcess, perPhase } = computeExcess(values, mask, band, threshold);
-    if (band.kind === "strict") strictPenalty += meanExcess;
-    if (band.kind === "tolerant") tolerantPenalty += meanExcess;
+    if (isKey) {
+      keyPenalty += meanExcess;
+    } else if (band.kind === "strict") {
+      strictPenalty += meanExcess;
+    } else {
+      tolerantPenalty += meanExcess;
+    }
 
     const maxZ = Math.max(...perPhase);
     if (maxZ > 0.5) {
@@ -127,7 +158,8 @@ export function scoreAgainstTemplate(
 
   const strictScore = cfg.strictWeight * strictPenalty;
   const tolerantScore = cfg.tolerantWeight * tolerantPenalty;
-  const raw = 100 - strictScore - tolerantScore;
+  const keyScore = cfg.keyWeight * keyPenalty;
+  const raw = 100 - strictScore - tolerantScore - keyScore;
   return {
     score: clamp(raw, 0, 100),
     faults,
@@ -136,38 +168,90 @@ export function scoreAgainstTemplate(
   };
 }
 
-/**
- * Score a single frame against the template at the given phase.
- * Returns faults sorted by zScore descending.
- */
+export interface RestShoulderElev {
+  left: number;
+  right: number;
+  torsoH_rest: number;
+}
+
+const SHRUG_ABOVE_REST_Z_THRESHOLD = 0.3;
+
+/** Score one frame at given phase. With restShoulderElev, shoulder_elev uses fixed rest torso height. */
 export function scoreFrame(
   frame: FrameFeatures,
   template: TemplateBundle,
   phase: number,
-  options: ScoreOptions = {},
+  options: ScoreOptions & { restShoulderElev?: RestShoulderElev; currentTorsoH?: number } = {},
 ): { faults: RealtimeFault[]; frameScore: number } {
-  const cfg = { ...DEFAULT_OPTIONS, ...options };
+  const { restShoulderElev, currentTorsoH, ...scoreOpts } = options;
+  const cfg = { ...DEFAULT_OPTIONS, ...scoreOpts };
   const p = clamp(Math.round(phase), 0, 99);
   const faults: RealtimeFault[] = [];
   let totalPenalty = 0;
+  const hasRestAndTorso =
+    restShoulderElev &&
+    restShoulderElev.torsoH_rest > 1e-6 &&
+    currentTorsoH != null &&
+    currentTorsoH > 1e-6;
 
   for (const [featureId, band] of Object.entries(template.features)) {
     const value = frame.values[featureId];
     const vis = frame.mask[featureId];
     if (value == null || !vis) continue;
 
-    const mean = band.mean[p] ?? 0;
+    let mean = band.mean[p] ?? 0;
     const std = band.std[p] ?? 1;
-    const z = Math.abs(value - mean) / (std + 1e-6);
-    const threshold = band.kind === "strict" ? cfg.strictThreshold : cfg.tolerantThreshold;
+    let z: number;
+    if (featureId === "shoulder_elev_left" && hasRestAndTorso) {
+      const rawHeight = (value + 1) * currentTorsoH;
+      const restRawLeft = (restShoulderElev!.left + 1) * restShoulderElev!.torsoH_rest;
+      const elevVsRest = restRawLeft > 1e-6 ? rawHeight / restRawLeft - 1 : 0;
+      const excessAboveRest = Math.max(0, elevVsRest);
+      z = excessAboveRest / (std + 1e-6);
+    } else if (featureId === "shoulder_elev_right" && hasRestAndTorso) {
+      const rawHeight = (value + 1) * currentTorsoH;
+      const restRawRight = (restShoulderElev!.right + 1) * restShoulderElev!.torsoH_rest;
+      const elevVsRest = restRawRight > 1e-6 ? rawHeight / restRawRight - 1 : 0;
+      const excessAboveRest = Math.max(0, elevVsRest);
+      z = excessAboveRest / (std + 1e-6);
+    } else if (featureId === "shoulder_elev_left" && restShoulderElev) {
+      mean = restShoulderElev.left;
+      const excessAboveRest = Math.max(0, value - mean);
+      z = excessAboveRest / (std + 1e-6);
+    } else if (featureId === "shoulder_elev_right" && restShoulderElev) {
+      mean = restShoulderElev.right;
+      const excessAboveRest = Math.max(0, value - mean);
+      z = excessAboveRest / (std + 1e-6);
+    } else {
+      z = Math.abs(value - mean) / (std + 1e-6);
+    }
+    const isShrugWithRest =
+      restShoulderElev != null && (featureId === "shoulder_elev_left" || featureId === "shoulder_elev_right");
+    const isKey = KEY_FEATURE_IDS.has(featureId);
+    const threshold = isShrugWithRest
+      ? SHRUG_ABOVE_REST_Z_THRESHOLD
+      : isKey
+        ? cfg.keyThreshold
+        : band.kind === "strict"
+          ? cfg.strictThreshold
+          : cfg.tolerantThreshold;
     const excess = Math.max(0, z - threshold);
-    const weight = band.kind === "strict" ? cfg.strictWeight : cfg.tolerantWeight;
+    const weight = isKey ? cfg.keyWeight : (band.kind === "strict" ? cfg.strictWeight : cfg.tolerantWeight);
     totalPenalty += weight * excess;
 
-    if (z > 1) {
+    const faultZThreshold = featureId === "hip_drift" ? 2.5 : 1.5;
+    if (z > faultZThreshold && !isShrugWithRest) {
       faults.push({
         featureId,
-        severity: z > 2.5 ? "error" : z > 1.5 ? "warn" : "info",
+        severity: z > 2.5 ? "error" : z > 2 ? "warn" : "info",
+        message: faultMessage(featureId),
+        joints: jointsForFeature(featureId),
+        zScore: z,
+      });
+    } else if (isShrugWithRest && z > SHRUG_ABOVE_REST_Z_THRESHOLD) {
+      faults.push({
+        featureId,
+        severity: z > 2.5 ? "error" : z > 2 ? "warn" : "info",
         message: faultMessage(featureId),
         joints: jointsForFeature(featureId),
         zScore: z,

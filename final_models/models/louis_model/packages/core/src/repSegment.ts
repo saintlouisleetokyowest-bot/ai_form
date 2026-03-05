@@ -25,7 +25,6 @@ export function segmentRepsFromAngles(
   for (let i = 1; i < signal.length; i++) {
     const visible = visibility[i];
     if (!visible) {
-      // break current rep if tracking goes bad
       if (inRep && i - start >= minFrames) {
         reps.push({ start, end: i - 1, peak: peakIdx });
       }
@@ -57,7 +56,6 @@ export function segmentRepsFromAngles(
     lastVisible = visible;
   }
 
-  // close trailing rep
   if (inRep && signal.length - start >= minFrames) {
     reps.push({ start, end: signal.length - 1, peak: peakIdx });
   }
@@ -65,9 +63,6 @@ export function segmentRepsFromAngles(
   return reps;
 }
 
-/**
- * Convenience: choose average arm raise angle as the segmentation signal.
- */
 export function segmentReps(seq: FeatureSequence): RepWindow[] {
   const left = seq.values["arm_raise_left"] ?? [];
   const right = seq.values["arm_raise_right"] ?? [];

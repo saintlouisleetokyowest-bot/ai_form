@@ -3,12 +3,31 @@ import { angleBetween, degrees, sub } from "./math";
 
 const Y_AXIS: Vec3 = [0, 1, 0];
 
+/** Knee valgus: (hipWidth - kneeWidth) / hipWidth in body-frame X when knees narrower than hips. */
+function kneeValgusGlobal(fr: BodyFrame): number {
+  const hipL = landmark(fr, 23);
+  const hipR = landmark(fr, 24);
+  const kneeL = landmark(fr, 25);
+  const kneeR = landmark(fr, 26);
+  const hipsVisible = visible(fr, 23) && visible(fr, 24);
+  const kneesVisible = visible(fr, 25) && visible(fr, 26);
+  if (!hipsVisible || !kneesVisible) return 0;
+  const hipWidth = Math.abs(hipR[0] - hipL[0]);
+  const kneeWidth = Math.abs(kneeR[0] - kneeL[0]);
+  const denom = hipWidth + 1e-6;
+  if (denom < 1e-6) return 0;
+  const ratio = kneeWidth / denom;
+  return Math.max(0, 1 - ratio);
+}
+
 export const featureDefinitions: FeatureDefinition[] = [
   { id: "arm_raise_left", kind: "strict", description: "Left upper-arm abduction vs torso" },
   { id: "arm_raise_right", kind: "strict", description: "Right upper-arm abduction vs torso" },
   { id: "arm_symmetry", kind: "strict", description: "Left-right raise angle difference" },
   { id: "torso_lean", kind: "strict", description: "Torso lean relative to vertical" },
   { id: "hip_drift", kind: "strict", description: "Hip drift in x/z" },
+  { id: "knee_valgus_left", kind: "strict", description: "Left knee valgus (inward cave)" },
+  { id: "knee_valgus_right", kind: "strict", description: "Right knee valgus (inward cave)" },
   { id: "elbow_angle_left", kind: "tolerant", description: "Left elbow bend" },
   { id: "elbow_angle_right", kind: "tolerant", description: "Right elbow bend" },
   { id: "shoulder_elev_left", kind: "tolerant", description: "Left shoulder elevation" },
@@ -38,9 +57,9 @@ function elbowAngle(fr: BodyFrame, shoulderIdx: number, elbowIdx: number, wristI
 }
 
 function torsoLean(fr: BodyFrame): number {
-  // Use the world-space torso direction (axes.y) saved in BodyFrame
-  // rather than body-frame landmarks where the lean is always ≈ 0°.
-  return degrees(angleBetween(fr.axes.y, Y_AXIS));
+  const angleRad = angleBetween(fr.axes.y, Y_AXIS);
+  const angleDeg = degrees(angleRad);
+  return angleDeg > 90 ? 180 - angleDeg : angleDeg;
 }
 
 function hipDrift(fr: BodyFrame, baseHip: Vec3): number {
@@ -69,11 +88,14 @@ export function computeFeatureSequence(frames: BodyFrame[]): FeatureSequence {
     const rightVisible = visible(fr, 12) && visible(fr, 14) && visible(fr, 16);
     const torsoVisible = visible(fr, 11) && visible(fr, 12) && visible(fr, 23) && visible(fr, 24);
 
-    const armRaiseLeft = leftVisible ? angleFromVertical(landmark(fr, 11), landmark(fr, 13)) : 0;
-    const armRaiseRight = rightVisible ? angleFromVertical(landmark(fr, 12), landmark(fr, 14)) : 0;
+    const armRaiseLeft = leftVisible ? 180 - angleFromVertical(landmark(fr, 11), landmark(fr, 13)) : 0;
+    const armRaiseRight = rightVisible ? 180 - angleFromVertical(landmark(fr, 12), landmark(fr, 14)) : 0;
     const symDiff = leftVisible && rightVisible ? Math.abs(armRaiseLeft - armRaiseRight) : 0;
     const torsoLeanVal = torsoVisible ? torsoLean(fr) : 0;
     const hipDriftVal = torsoVisible ? hipDrift(fr, baseHip) : 0;
+    const kneesVisibleGlobal =
+      visible(fr, 23) && visible(fr, 24) && visible(fr, 25) && visible(fr, 26);
+    const kneeValgusValue = kneesVisibleGlobal ? kneeValgusGlobal(fr) : 0;
     const elbowLeft = leftVisible ? elbowAngle(fr, 11, 13, 15) : 0;
     const elbowRight = rightVisible ? elbowAngle(fr, 12, 14, 16) : 0;
     const sCY = (landmark(fr, 11)[1] + landmark(fr, 12)[1]) / 2;
@@ -92,6 +114,10 @@ export function computeFeatureSequence(frames: BodyFrame[]): FeatureSequence {
     mask["torso_lean"].push(torsoVisible);
     values["hip_drift"].push(hipDriftVal);
     mask["hip_drift"].push(torsoVisible);
+    values["knee_valgus_left"].push(kneeValgusValue);
+    mask["knee_valgus_left"].push(kneesVisibleGlobal);
+    values["knee_valgus_right"].push(kneeValgusValue);
+    mask["knee_valgus_right"].push(kneesVisibleGlobal);
     values["elbow_angle_left"].push(elbowLeft);
     mask["elbow_angle_left"].push(leftVisible);
     values["elbow_angle_right"].push(elbowRight);
@@ -106,10 +132,7 @@ export function computeFeatureSequence(frames: BodyFrame[]): FeatureSequence {
   return { phase, values, mask };
 }
 
-/**
- * Compute the 9 features for a single body frame.
- * `baseHip` defaults to the frame's own hip center (no drift reference).
- */
+/** Compute 9 features for one frame. baseHip defaults to frame hip center. */
 export function computeFrameFeatures(fr: BodyFrame, baseHip?: Vec3): FrameFeatures {
   const leftVisible = visible(fr, 11) && visible(fr, 13) && visible(fr, 15);
   const rightVisible = visible(fr, 12) && visible(fr, 14) && visible(fr, 16);
@@ -127,11 +150,13 @@ export function computeFrameFeatures(fr: BodyFrame, baseHip?: Vec3): FrameFeatur
   const torsoH = Math.abs(shoulderCY - hipCY) || 1;
 
   const values: Record<string, number> = {
-    arm_raise_left: leftVisible ? angleFromVertical(landmark(fr, 11), landmark(fr, 13)) : 0,
-    arm_raise_right: rightVisible ? angleFromVertical(landmark(fr, 12), landmark(fr, 14)) : 0,
+    arm_raise_left: leftVisible ? 180 - angleFromVertical(landmark(fr, 11), landmark(fr, 13)) : 0,
+    arm_raise_right: rightVisible ? 180 - angleFromVertical(landmark(fr, 12), landmark(fr, 14)) : 0,
     arm_symmetry: 0,
     torso_lean: torsoVisible ? torsoLean(fr) : 0,
     hip_drift: torsoVisible ? hipDrift(fr, hip) : 0,
+    knee_valgus_left: 0,
+    knee_valgus_right: 0,
     elbow_angle_left: leftVisible ? elbowAngle(fr, 11, 13, 15) : 0,
     elbow_angle_right: rightVisible ? elbowAngle(fr, 12, 14, 16) : 0,
     shoulder_elev_left: torsoVisible ? (landmark(fr, 11)[1] - landmark(fr, 23)[1]) / torsoH - 1.0 : 0,
@@ -140,12 +165,20 @@ export function computeFrameFeatures(fr: BodyFrame, baseHip?: Vec3): FrameFeatur
   values.arm_symmetry = leftVisible && rightVisible
     ? Math.abs(values.arm_raise_left - values.arm_raise_right) : 0;
 
+  const kneesVisibleGlobal =
+    visible(fr, 23) && visible(fr, 24) && visible(fr, 25) && visible(fr, 26);
+  const kneeValgusValue = kneesVisibleGlobal ? kneeValgusGlobal(fr) : 0;
+  values.knee_valgus_left = kneeValgusValue;
+  values.knee_valgus_right = kneeValgusValue;
+
   const mask: Record<string, boolean> = {
     arm_raise_left: leftVisible,
     arm_raise_right: rightVisible,
     arm_symmetry: leftVisible && rightVisible,
     torso_lean: torsoVisible,
     hip_drift: torsoVisible,
+    knee_valgus_left: kneesVisibleGlobal,
+    knee_valgus_right: kneesVisibleGlobal,
     elbow_angle_left: leftVisible,
     elbow_angle_right: rightVisible,
     shoulder_elev_left: torsoVisible && visible(fr, 11),

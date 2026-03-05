@@ -22,7 +22,6 @@ export function usePose(
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [frames, setFrames] = useState<PoseFrame[]>([]);
 
-  // load landmarker
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -57,7 +56,6 @@ export function usePose(
     };
   }, [enabled]);
 
-  // run inference loop
   useEffect(() => {
     let rafId: number;
     function loop() {
