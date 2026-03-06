@@ -188,8 +188,11 @@ def score_form(features, meta, X_scaler, y_scaler, model):
     prediction_scaled = model.predict(vec_scaled, verbose=0)
     prediction = y_scaler.inverse_transform(prediction_scaled)[0]
 
+    #Computes the absolute difference between what is and what should be done
     input_vals = np.array([features[f] for f in feature_cols])
     errors    = np.abs(input_vals - prediction)
+
+    #Converts the worst feature error to our score
     max_error = float(np.max(errors))
     score     = max(0.0, 100.0 * (1.0 - max_error / 40.0))
 
