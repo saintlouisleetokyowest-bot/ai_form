@@ -1,0 +1,1 @@
+{"version":3,"file":"correctionSkeleton.d.ts","sourceRoot":"","sources":["correctionSkeleton.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,SAAS,EAAE,eAAe,EAAE,QAAQ,EAAyB,MAAM,SAAS,CAAC;AAwCtF;;;;;;GAMG;AACH,wBAAgB,wBAAwB,CACtC,UAAU,EAAE,eAAe,EAC3B,SAAS,EAAE,SAAS,EACpB,kBAAkB,EAAE,QAAQ,EAAE,GAC7B,KAAK,CAAC;IAAE,CAAC,EAAE,MAAM,CAAC;IAAC,CAAC,EAAE,MAAM,CAAA;CAAE,CAAC,CAyIjC"}

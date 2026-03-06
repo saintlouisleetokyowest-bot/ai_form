@@ -119,7 +119,11 @@ def score_form(features):
     prediction_scaled = _model.predict(_X_scaler.transform(vec), verbose=0)
     prediction        = _y_scaler.inverse_transform(prediction_scaled)[0]
     errors            = np.abs(np.array([features[f] for f in feature_cols]) - prediction)
+<<<<<<< HEAD
     score             = max(0.0, 100.0 * (1.0 - float(np.max(errors)) / 40.0))
+=======
+    score             = max(0.0, 100.0 * (1.0 - float(np.max(errors)) / 60.0))
+>>>>>>> upstream/master
     return score, prediction, feature_cols
 
 
@@ -176,10 +180,16 @@ def reconstruction_to_landmarks(prediction, feature_cols, raw_landmarks):
         ideal_elbow_angle = float(np.clip(ideal.get(f"{side}_elbow_angle", 160.0), 90.0, 180.0))
 
         torso_dir     = (hip_pos - shoulder_pos) / (np.linalg.norm(hip_pos - shoulder_pos) + 1e-6)
+<<<<<<< HEAD
         sign      = 1 if side == "left" else -1
         raise_rad = np.radians(ideal_raise) * sign          # flip angle for right side
         cos_r, sin_r = np.cos(raise_rad), np.sin(raise_rad)
         rot  = np.array([[cos_r, -sin_r], [sin_r, cos_r]])
+=======
+        sign          = 1 if side == "left" else -1
+        cos_r, sin_r  = np.cos(np.radians(ideal_raise)), np.sin(np.radians(ideal_raise))
+        rot           = np.array([[cos_r, sign * -sin_r], [sin_r, sign * cos_r]])
+>>>>>>> upstream/master
         upper_arm_dir = rot @ (-torso_dir)
         ideal_elbow   = shoulder_pos + upper_arm_len * upper_arm_dir
 
@@ -215,8 +225,13 @@ def health():
 
 
 @app.post("/analyze")
+<<<<<<< HEAD
 def analyze(file: UploadFile = File(...)):
     img_bytes = file.file.read()
+=======
+async def analyze(file: UploadFile = File(...)):
+    img_bytes = await file.read()
+>>>>>>> upstream/master
     frame = cv2.imdecode(np.frombuffer(img_bytes, np.uint8), cv2.IMREAD_COLOR)
     if frame is None:
         return JSONResponse({"error": "invalid image"}, status_code=400)

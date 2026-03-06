@@ -1,4 +1,5 @@
 """
+<<<<<<< HEAD
 Landmark & Angle Extractor
 =========================================================
 Processes good-form workout videos with MediaPipe Pose and
@@ -6,6 +7,14 @@ extracts joint angles for Lateral Raises.
 
 Output is used by generate_bad_form.py to create synthetic
 paired training data.
+=======
+Landmark & Angle Extractor (Autoencoder Version)
+=========================================================
+Processes workout videos with MediaPipe Pose and extracts joint angles
+for Lateral Raises.
+
+Orignal good-form with paired bad-form repetitions by Jinnosuke
+>>>>>>> upstream/master
 """
 
 import cv2

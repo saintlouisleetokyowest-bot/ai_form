@@ -93,10 +93,16 @@ output_dim = y_train_scaled.shape[1]
 # ── Model ─────────────────────────────────────────────────────────────────────
 model = Sequential([
     Input(shape=(input_dim,)),
+<<<<<<< HEAD
     layers.Dense(64, activation='relu'),
     layers.Dropout(0.15),
     layers.Dense(64, activation='relu'),
     layers.Dropout(0.15),
+=======
+    layers.Dense(32, activation='relu'),
+    layers.Dropout(0.2),
+    layers.Dense(16, activation='relu'),
+>>>>>>> upstream/master
     layers.Dense(32, activation='relu'),
     layers.Dense(output_dim, activation='linear')
 ])
