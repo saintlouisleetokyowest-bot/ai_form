@@ -10,7 +10,7 @@ export interface Landmark {
 export interface PoseFrame {
   /** MediaPipe world landmarks in meters. */
   landmarks: Landmark[];
-  /** 2D screen landmarks mirrored to the rendered video (optional). */
+  /** 2D screen landmarks mirrored to the rendered video. */
   imageLandmarks?: Landmark[];
   /** Frame index in the incoming stream. */
   index?: number;

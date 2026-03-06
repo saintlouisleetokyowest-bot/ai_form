@@ -37,12 +37,10 @@ export function estimateScale(landmarks: Landmark[], origin: Vec3): number {
   }
 
   if (dists.length === 0) {
-    // fallback: distance to origin of first visible point
     const first = landmarks.find((lm) => visible(lm));
     if (first) dists.push(norm(sub([first.x, first.y, first.z], origin)));
   }
 
   const s = median(dists);
-  // avoid extremely small scales that blow up values
   return Math.min(Math.max(s, 0.15), 2.5);
 }

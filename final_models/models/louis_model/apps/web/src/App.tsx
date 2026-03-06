@@ -16,11 +16,11 @@ export default function App() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const { ready, error } = useCamera(videoRef);
   const { status: poseStatus, frames, lastFrame } = usePose(videoRef, { enabled: ready });
-  const coach = useRealtimeCoach(frames);
+  const coach = useRealtimeCoach(frames, "/models/pose_corrector.onnx");
 
   return (
     <div className="split-layout">
-      {/* Left panel: Module 1 — Ideal overlay */}
+      {/* Left: ideal overlay */}
       <div className="split-panel">
         <div className="video-wrap">
           <video ref={videoRef} playsInline muted />
@@ -34,28 +34,20 @@ export default function App() {
           />
           <div className="panel-label ideal-label">Ideal Form</div>
         </div>
-        <div className="info-bar">
-          <span className="status-dot" style={{ background: statusColor[ready ? "ready" : "idle"] }} />
-          <span>Cam: {ready ? "✓" : "…"}</span>
-          <span className="status-dot" style={{ background: statusColor[poseStatus] }} />
-          <span>Pose: {poseStatus === "ready" ? "✓" : poseStatus}</span>
+        <div className="info-bar info-bar-left">
           {error && <span style={{ color: "#f87171" }}>{error}</span>}
-          <span className="sep">|</span>
-          <span className="score-group">
-            Score: <strong>{coach.frameScore.toFixed(0)}</strong>
-            <span className="score-bar-track">
-              <span className="score-bar-fill" style={{ width: `${coach.frameScore}%` }} />
-            </span>
+          {error && <span className="sep">|</span>}
+          <span className="score-label">Score: <strong>{coach.frameScore.toFixed(0)}</strong></span>
+          <span className="score-bar-track">
+            <span className="score-bar-fill" style={{ width: `${coach.frameScore}%` }} />
           </span>
-          <span className="sep">|</span>
-          <span>Phase: <strong>{coach.onlinePhase}</strong></span>
-          {coach.top3Faults.map((f, i) => (
-            <span key={i} className={`fault-badge ${f.severity}`}>{f.message}</span>
-          ))}
+          <span className={`fault-message-text ${coach.top3Faults[0]?.severity ?? "info"}`}>
+            {coach.top3Faults[0]?.message ?? "\u00a0"}
+          </span>
         </div>
       </div>
 
-      {/* Right panel: Module 2 — ML Correction */}
+      {/* Right: ML correction */}
       <div className="split-panel">
         <div className="video-wrap">
           <video ref={videoRef} playsInline muted />
@@ -66,8 +58,15 @@ export default function App() {
           />
           <div className="panel-label correction-label">ML Correction</div>
         </div>
-        <div className="info-bar">
-          <span>Model: <strong>{coach.correctorReady ? "unload" : "mock (no model)"}</strong></span>
+        <div className="info-bar info-bar-right">
+          <span className="status-dot" style={{ background: statusColor[ready ? "ready" : "idle"] }} />
+          <span>Cam: {ready ? "✓" : "…"}</span>
+          <span className="status-dot" style={{ background: statusColor[poseStatus] }} />
+          <span>Pose: {poseStatus === "ready" ? "✓" : poseStatus}</span>
+          <span className="sep">|</span>
+          <span>Model: <strong>{coach.correctorReady ? "loaded" : "mock (no model)"}</strong></span>
+          <span className="sep">|</span>
+          <span>Phase: <strong>{coach.onlinePhase}</strong></span>
         </div>
       </div>
     </div>

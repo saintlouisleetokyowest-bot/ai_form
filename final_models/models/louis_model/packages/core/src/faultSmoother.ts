@@ -4,11 +4,7 @@ const WINDOW = 6;
 const MIN_HITS = 4;
 const TOP_N = 3;
 
-/**
- * Sliding-window smoother that suppresses flickering faults.
- * A fault must appear in >= MIN_HITS of the last WINDOW frames to surface.
- * Returns at most TOP_N faults sorted by average zScore.
- */
+/** Sliding-window smoother: fault must appear in >= MIN_HITS of last WINDOW frames; at most TOP_N. */
 export class FaultSmoother {
   private history: RealtimeFault[][] = [];
 

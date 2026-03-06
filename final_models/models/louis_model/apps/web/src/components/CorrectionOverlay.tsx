@@ -37,32 +37,9 @@ function drawUserSkeleton(ctx: CanvasRenderingContext2D, pts: { x: number; y: nu
 function drawCorrectionSkeleton(
   ctx: CanvasRenderingContext2D,
   pts: Array<{ x: number; y: number }>,
-  userPts: { x: number; y: number; visibility?: number }[],
 ) {
   const w = ctx.canvas.width;
   const h = ctx.canvas.height;
-
-  // Check if correction differs from user (confidence > 0 means real model)
-  let hasDiff = false;
-  for (let i = 0; i < Math.min(pts.length, userPts.length); i++) {
-    const up = userPts[i];
-    const cp = pts[i];
-    if (!up || !cp) continue;
-    if (Math.abs(up.x - cp.x) > 0.005 || Math.abs(up.y - cp.y) > 0.005) {
-      hasDiff = true;
-      break;
-    }
-  }
-
-  if (!hasDiff) {
-    // Mock mode — no ML model loaded. Show placeholder.
-    ctx.save();
-    ctx.fillStyle = "rgba(255, 180, 50, 0.7)";
-    ctx.font = "bold 14px 'Inter', sans-serif";
-    ctx.fillText("ML model not loaded", 12, ctx.canvas.height - 16);
-    ctx.restore();
-    return;
-  }
 
   ctx.save();
   ctx.strokeStyle = CORRECTION_COLOR;
@@ -115,7 +92,7 @@ export const CorrectionOverlay: React.FC<Props> = ({ videoRef, frame, correction
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     if (correctionLandmarks) {
-      drawCorrectionSkeleton(ctx, correctionLandmarks, frame.imageLandmarks);
+      drawCorrectionSkeleton(ctx, correctionLandmarks);
     }
 
     drawUserSkeleton(ctx, frame.imageLandmarks);

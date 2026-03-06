@@ -88,10 +88,10 @@ function drawGhostArms(ctx: CanvasRenderingContext2D, ghost: GhostArms) {
   ctx.restore();
 }
 
-const HINT_FONT = "bold 13px 'Inter', sans-serif";
-const HINT_LINE_HEIGHT = 22;
-const HINT_PAD_X = 6;
-const HINT_PAD_Y = 4;
+const HINT_FONT = "bold 20px 'Inter', sans-serif";
+const HINT_LINE_HEIGHT = 33;
+const HINT_PAD_X = 9;
+const HINT_PAD_Y = 6;
 
 function drawHintLabels(
   ctx: CanvasRenderingContext2D,
@@ -103,7 +103,6 @@ function drawHintLabels(
   const h = ctx.canvas.height;
   ctx.font = HINT_FONT;
 
-  // Build positioned labels, preferring the median joint for better spread
   const labels = hints.map((hint) => {
     const midIdx = hint.joints[Math.floor(hint.joints.length / 2)];
     const p = imageLandmarks[midIdx] ?? imageLandmarks[hint.joints[0]];
@@ -121,7 +120,6 @@ function drawHintLabels(
   // Sort by anchor Y so we can push downward on collision
   labels.sort((a, b) => a.anchorY - b.anchorY);
 
-  // Resolve vertical collisions
   let prevBottom = -Infinity;
   for (const lbl of labels) {
     const idealTop = lbl.anchorY - HINT_LINE_HEIGHT / 2;
@@ -129,7 +127,6 @@ function drawHintLabels(
     prevBottom = lbl.y + HINT_LINE_HEIGHT;
   }
 
-  // Draw each label with a background pill
   for (const lbl of labels) {
     const bx = lbl.anchorX - HINT_PAD_X;
     const by = lbl.y - HINT_PAD_Y;
@@ -137,7 +134,6 @@ function drawHintLabels(
     const bh = HINT_LINE_HEIGHT;
     const radius = 5;
 
-    // Clamp to canvas bounds
     const clampedX = Math.max(2, Math.min(bx, w - bw - 2));
     const clampedY = Math.max(2, Math.min(by, h - bh - 2));
 
@@ -181,25 +177,21 @@ export const OverlayCanvas: React.FC<Props> = ({ videoRef, frame, faults, hints,
     if (!ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // 1. Ghost skeleton (draw first so user skeleton renders on top)
     if (ghostArms) {
       drawGhostArms(ctx, ghostArms);
     }
 
-    // 2. User skeleton
     drawSkeleton(ctx, frame.imageLandmarks);
     const highlightJoints = Array.from(new Set(faults.flatMap((f) => f.joints)));
     drawJoints(ctx, frame.imageLandmarks, highlightJoints);
 
-    // 3. Hint labels with collision avoidance
     drawHintLabels(ctx, hints, frame.imageLandmarks);
 
-    // 4. Phase indicator
     if (typeof onlinePhase === "number") {
       ctx.save();
       ctx.fillStyle = "rgba(0, 230, 180, 0.85)";
-      ctx.font = "bold 13px 'Inter', sans-serif";
-      ctx.fillText(`Phase: ${onlinePhase}`, 12, canvas.height - 16);
+      ctx.font = "bold 20px 'Inter', sans-serif";
+      ctx.fillText(`Phase: ${onlinePhase}`, 18, canvas.height - 24);
       ctx.restore();
     }
   }, [frame, faults, hints, ghostArms, onlinePhase]);

@@ -28,7 +28,6 @@ export function useRepScoring(frames: PoseFrame[]) {
   const scoring = aligned ? scoreAgainstTemplate(aligned, template) : null;
   const hints = scoring ? renderHintsForFaults(scoring.faults) : [];
 
-  // --- Online phase estimation for ghost overlay ---
   const phaseRef = useRef<PhaseState>(INITIAL_PHASE_STATE);
 
   const { ghostArms, onlinePhase } = useMemo(() => {
@@ -53,8 +52,6 @@ export function useRepScoring(frames: PoseFrame[]) {
     const count = (lVis ? 1 : 0) + (rVis ? 1 : 0);
     const avgRaise = count > 0 ? (lVal + rVal) / count : 0;
 
-    // features.ts measures angle-from-Y-up (rest≈170°, horizontal≈90°),
-    // but the template uses abduction-from-body (rest≈10°, horizontal≈85°).
     const abductionAngle = 180 - avgRaise;
 
     const nextPhase = estimateOnlinePhase(abductionAngle, phaseRef.current);
