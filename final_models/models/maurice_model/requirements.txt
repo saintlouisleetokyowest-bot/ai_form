@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+python-multipart
+tensorflow==2.13.0
+mediapipe
+opencv-python-headless
+numpy<2.0
+scikit-learn
