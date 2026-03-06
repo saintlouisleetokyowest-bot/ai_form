@@ -49,7 +49,9 @@ def get_coords(landmarks, landmark_enum):
 
 
 def angle_between(a, b, c):
-    """Angle at point B formed by vectors BA and BC, in degrees."""
+    """Angle at point B formed by vectors BA and BC, in degrees.
+        Point b is the vertex!
+    """
     ba = a - b
     bc = c - b
     cosine = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc) + 1e-6)
