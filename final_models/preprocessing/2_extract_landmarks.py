@@ -1,10 +1,11 @@
 """
-Landmark & Angle Extractor (Autoencoder Version)
+Landmark & Angle Extractor
 =========================================================
 Processes workout videos with MediaPipe Pose and extracts joint angles
 for Lateral Raises.
 
 Orignal good-form with paired bad-form repetitions by Jinnosuke
+
 """
 
 import cv2
@@ -140,10 +141,10 @@ def process_video(video_path, exercise, frame_skip=3):
 
     with mp_pose.Pose(
         static_image_mode=False,
-        model_complexity=1,
+        model_complexity=2,
         smooth_landmarks=True,
-        min_detection_confidence=0.5,
-        min_tracking_confidence=0.5,
+        min_detection_confidence=0.7,
+        min_tracking_confidence=0.7,
     ) as pose:
         while cap.isOpened():
             ret, frame = cap.read()

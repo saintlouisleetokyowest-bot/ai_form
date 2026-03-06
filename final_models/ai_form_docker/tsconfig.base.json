@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "ES2021",
+    "module": "ESNext",
+    "moduleResolution": "Node",
+    "jsx": "react-jsx",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "allowSyntheticDefaultImports": true,
+    "baseUrl": ".",
+    "paths": {
+      "@ai-form/core": ["packages/core/src"],
+      "@ai-form/models": ["packages/models/src"],
+      "@ai-form/types": ["packages/core/src/types"],
+      "@ai-form/config/*": ["config/*"]
+    }
+  }
+}

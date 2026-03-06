@@ -1,5 +1,9 @@
 {
   "exercise": "lateral raise",
+<<<<<<< HEAD
+  "prediction_type": "absolute",
+=======
+>>>>>>> upstream/master
   "input_features": [
     "left_arm_raise_bad",
     "right_arm_raise_bad",
